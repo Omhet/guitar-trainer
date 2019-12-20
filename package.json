@@ -3,7 +3,10 @@
     "dev": "parcel index.html"
   },
   "dependencies": {
-    "pitchfinder": "^2.1.0"
+    "@tonejs/midi": "^2.0.15",
+    "note-to-frequency": "^1.4.1",
+    "pitchfinder": "^2.1.0",
+    "tone": "^13.8.25"
   },
   "name": "guitar",
   "version": "1.0.0",

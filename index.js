@@ -1,10 +1,12 @@
+import { Player } from './player.js';
+
+var userAnalyser;
+const FFTSIZE = 2048 * 4;
+
 const Pitchfinder = require("pitchfinder");
 const detectPitch = Pitchfinder.AMDF();
 
-const noteStrings = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"];
-
 async function init() {
-    const FFTSIZE = 2048 * 4;
     const context = new AudioContext();
 
     if (context.state === 'suspended') {
@@ -22,18 +24,17 @@ async function init() {
         });
     const lineInSource = context.createMediaStreamSource(stream);
 
-    const analyser = context.createAnalyser();
-    analyser.fftSize = FFTSIZE;
-    analyser.smoothingTimeConstant = 0.1;
-    const timeBuffer = new Float32Array(FFTSIZE);
+    userAnalyser = context.createAnalyser();
+    userAnalyser.fftSize = FFTSIZE;
+    userAnalyser.smoothingTimeConstant = 0.1;
 
     const gainNodeL = context.createGain();
     const gainNodeR = context.createGain();
     const merger = context.createChannelMerger(2);
 
-    lineInSource.connect(analyser);
-    analyser.connect(gainNodeL);
-    analyser.connect(gainNodeR);
+    lineInSource.connect(userAnalyser);
+    userAnalyser.connect(gainNodeL);
+    userAnalyser.connect(gainNodeR);
 
     gainNodeL.connect(merger, 0, 0);
     gainNodeR.connect(merger, 0, 1);
@@ -42,30 +43,41 @@ async function init() {
     gainNodeR.gain.setTargetAtTime(gain, context.currentTime, 0.01);
 
     merger.connect(context.destination);
+}
+
+document.getElementById('start').addEventListener('click', init);
+const progress = document.getElementById('progress');
 
 
-    function update() {
-        requestAnimationFrame(update);
+const player = new Player(handleUpdate);
 
-        analyser.getFloatTimeDomainData(timeBuffer);
-        const pitch = detectPitch(timeBuffer); // null if pitch cannot be identified
+let all = 0;
+let success = 0;
+let res = 0;
+const userTimeBuffer = new Float32Array(FFTSIZE);
 
-        if (pitch !== null) {
-            const noteNum = noteFromPitch(pitch);
-            const note = noteStrings[noteNum % 12];
-            console.log({ pitch, note })
+function handleUpdate(refPitch) {
+    userAnalyser.getFloatTimeDomainData(userTimeBuffer);
+    const userPitch = detectPitch(userTimeBuffer);
+
+    if (refPitch !== null) {
+        if (userPitch !== null) {
+            const diff = Math.abs(refPitch - userPitch);
+
+            if (diff < 6) {
+                success++;
+                console.log({ res, all, success, diff, userPitch });
+
+            }
         }
 
+        all++;
+        res = (success / all) * 100;
+        progress.value = res;
     }
-
-    update();
 }
 
-function noteFromPitch(frequency) {
-    const noteNum = 12 * (Math.log(frequency / 440) / Math.log(2));
-    return Math.round(noteNum) + 69;
-}
-
-
-document.querySelector('button').addEventListener('click', init);
-
+const playBtn = document.getElementById('play');
+playBtn.addEventListener('click', () => {
+    player.playSequence();
+});
